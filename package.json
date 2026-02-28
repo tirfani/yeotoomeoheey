@@ -1,11 +1,12 @@
 {
-  "name": "discord-online-24x7",
+  "name": "discord-custom-status",
   "version": "1.0.0",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js"
   },
   "dependencies": {
-    "discord.js-selfbot-v13": "latest"
+    "discord.js-selfbot-v13": "latest",
+    "debug": "^4.3.4"
   }
 }
