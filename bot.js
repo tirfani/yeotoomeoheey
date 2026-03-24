@@ -1,6 +1,5 @@
 const { Client } = require("discord.js-selfbot-v13");
 
-// Environment variables
 const token = process.env.TOKEN;
 const voiceChannelId = process.env.VOICE_CHANNEL_ID;
 
@@ -24,40 +23,51 @@ client.on("ready", async () => {
     await client.user.setStatus("online");
     console.log("🟢 Status set to online");
 
-    // Give Discord time to fully load guilds
-    setTimeout(async () => {
+    // Wait for guilds to load
+    setTimeout(() => {
         const voiceChannel = client.channels.cache.get(voiceChannelId);
         if (!voiceChannel) {
             console.error(`❌ Voice channel ${voiceChannelId} not found.`);
             return;
         }
 
-        try {
-            await voiceChannel.join();
-            console.log(`🔊 Joined voice channel: ${voiceChannel.name} (${voiceChannelId})`);
-        } catch (err) {
-            console.error("❌ Failed to join voice channel:", err);
+        const guild = voiceChannel.guild;
+        if (!guild) {
+            console.error("❌ Could not find guild for voice channel.");
+            return;
         }
+
+        // Join using client.voice.join
+        client.voice.join(guild.id, voiceChannel.id)
+            .then(connection => {
+                console.log(`🔊 Joined voice channel: ${voiceChannel.name} (${voiceChannelId})`);
+            })
+            .catch(err => {
+                console.error("❌ Failed to join voice channel:", err);
+            });
     }, 5000);
 });
 
-// Auto‑reconnect if disconnected
+// Auto‑reconnect on disconnect
 client.on("voiceStateUpdate", (oldState, newState) => {
     if (newState.id === client.user.id && !newState.channelId) {
         console.log("⚠️ Disconnected from voice. Reconnecting...");
         const channel = client.channels.cache.get(voiceChannelId);
         if (channel) {
             setTimeout(() => {
-                channel.join().catch(e => console.error("Rejoin failed:", e));
+                const guild = channel.guild;
+                if (guild) {
+                    client.voice.join(guild.id, channel.id)
+                        .then(() => console.log("🔊 Reconnected to voice."))
+                        .catch(e => console.error("Rejoin failed:", e));
+                }
             }, 5000);
         }
     }
 });
 
-// Error handler
 client.on("error", console.error);
 
-// Login
 client.login(token).catch(err => {
     console.error("❌ Login failed:", err);
     process.exit(1);
