@@ -23,39 +23,38 @@ client.on("ready", async () => {
     await client.user.setStatus("online");
     console.log("🟢 Status set to online");
 
-    // Wait a bit for guilds to load, then fetch the voice channel
+    // Give time for guilds to load
     setTimeout(async () => {
         try {
-            // Fetch the channel directly (ensures it's in cache and valid)
-            const voiceChannel = await client.channels.fetch(voiceChannelId);
-            if (!voiceChannel) {
+            const channel = await client.channels.fetch(voiceChannelId);
+            if (!channel) {
                 console.error(`❌ Voice channel ${voiceChannelId} not found.`);
                 return;
             }
 
-            // Verify it's a voice channel
-            if (voiceChannel.type !== "GUILD_VOICE") {
-                console.error(`❌ Channel ${voiceChannelId} is not a voice channel.`);
+            const guild = channel.guild;
+            if (!guild) {
+                console.error("❌ Guild not found for this channel.");
                 return;
             }
 
-            // Join using the built-in method
-            await voiceChannel.join();
-            console.log(`🔊 Joined voice channel: ${voiceChannel.name} (${voiceChannelId})`);
+            // Correct way to join voice in selfbot
+            await client.voice.join(guild.id, channel.id);
+            console.log(`🔊 Joined voice channel: ${channel.name} (${voiceChannelId})`);
         } catch (err) {
             console.error("❌ Failed to join voice channel:", err);
         }
     }, 5000);
 });
 
-// Auto‑reconnect on disconnect
+// Auto-reconnect on disconnect
 client.on("voiceStateUpdate", async (oldState, newState) => {
     if (newState.id === client.user.id && !newState.channelId) {
         console.log("⚠️ Disconnected from voice. Reconnecting...");
         try {
             const channel = await client.channels.fetch(voiceChannelId);
-            if (channel && channel.type === "GUILD_VOICE") {
-                await channel.join();
+            if (channel && channel.guild) {
+                await client.voice.join(channel.guild.id, channel.id);
                 console.log("🔊 Reconnected to voice.");
             }
         } catch (err) {
