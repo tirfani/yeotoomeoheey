@@ -23,45 +23,43 @@ client.on("ready", async () => {
     await client.user.setStatus("online");
     console.log("🟢 Status set to online");
 
-    // Wait for guilds to load
-    setTimeout(() => {
-        const voiceChannel = client.channels.cache.get(voiceChannelId);
-        if (!voiceChannel) {
-            console.error(`❌ Voice channel ${voiceChannelId} not found.`);
-            return;
-        }
+    // Wait a bit for guilds to load, then fetch the voice channel
+    setTimeout(async () => {
+        try {
+            // Fetch the channel directly (ensures it's in cache and valid)
+            const voiceChannel = await client.channels.fetch(voiceChannelId);
+            if (!voiceChannel) {
+                console.error(`❌ Voice channel ${voiceChannelId} not found.`);
+                return;
+            }
 
-        const guild = voiceChannel.guild;
-        if (!guild) {
-            console.error("❌ Could not find guild for voice channel.");
-            return;
-        }
+            // Verify it's a voice channel
+            if (voiceChannel.type !== "GUILD_VOICE") {
+                console.error(`❌ Channel ${voiceChannelId} is not a voice channel.`);
+                return;
+            }
 
-        // Join using client.voice.join
-        client.voice.join(guild.id, voiceChannel.id)
-            .then(connection => {
-                console.log(`🔊 Joined voice channel: ${voiceChannel.name} (${voiceChannelId})`);
-            })
-            .catch(err => {
-                console.error("❌ Failed to join voice channel:", err);
-            });
+            // Join using the built-in method
+            await voiceChannel.join();
+            console.log(`🔊 Joined voice channel: ${voiceChannel.name} (${voiceChannelId})`);
+        } catch (err) {
+            console.error("❌ Failed to join voice channel:", err);
+        }
     }, 5000);
 });
 
 // Auto‑reconnect on disconnect
-client.on("voiceStateUpdate", (oldState, newState) => {
+client.on("voiceStateUpdate", async (oldState, newState) => {
     if (newState.id === client.user.id && !newState.channelId) {
         console.log("⚠️ Disconnected from voice. Reconnecting...");
-        const channel = client.channels.cache.get(voiceChannelId);
-        if (channel) {
-            setTimeout(() => {
-                const guild = channel.guild;
-                if (guild) {
-                    client.voice.join(guild.id, channel.id)
-                        .then(() => console.log("🔊 Reconnected to voice."))
-                        .catch(e => console.error("Rejoin failed:", e));
-                }
-            }, 5000);
+        try {
+            const channel = await client.channels.fetch(voiceChannelId);
+            if (channel && channel.type === "GUILD_VOICE") {
+                await channel.join();
+                console.log("🔊 Reconnected to voice.");
+            }
+        } catch (err) {
+            console.error("❌ Reconnect failed:", err);
         }
     }
 });
