@@ -13,7 +13,6 @@ if (!voiceChannelId) {
     process.exit(1);
 }
 
-// Create client with all required intents
 const client = new Client({
     checkUpdate: false,
     syncStatus: false,
@@ -25,17 +24,11 @@ client.on("ready", async () => {
     await client.user.setStatus("online");
     console.log("🟢 Status set to online");
 
-    // Wait for guilds to load
+    // Give Discord time to fully load guilds
     setTimeout(async () => {
         const voiceChannel = client.channels.cache.get(voiceChannelId);
         if (!voiceChannel) {
             console.error(`❌ Voice channel ${voiceChannelId} not found.`);
-            return;
-        }
-
-        // Already connected?
-        if (client.voice.connections.has(voiceChannel.guild.id)) {
-            console.log("Already connected to voice.");
             return;
         }
 
@@ -45,10 +38,10 @@ client.on("ready", async () => {
         } catch (err) {
             console.error("❌ Failed to join voice channel:", err);
         }
-    }, 3000); // small delay for guild cache
+    }, 5000);
 });
 
-// Auto‑reconnect on disconnect
+// Auto‑reconnect if disconnected
 client.on("voiceStateUpdate", (oldState, newState) => {
     if (newState.id === client.user.id && !newState.channelId) {
         console.log("⚠️ Disconnected from voice. Reconnecting...");
