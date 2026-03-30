@@ -55,6 +55,7 @@ async function updatePresence() {
     const startTime = now - loopProgress;
     const endTime = startTime + track.durationMs;
 
+    // Correct builder usage with right method names
     const presence = new SpotifyRPC(client)
         .setSongId(track.id)
         .setDetails(track.name)
@@ -63,8 +64,8 @@ async function updatePresence() {
         .setAssetsLargeText(track.album)
         .setAssetsSmallImage("spotify:ab6761610000e5ebd8b2c1e8b3f8e7e9b5c4d2a1")
         .setAssetsSmallText("Spotify")
-        .setTimestampsStart(startTime)
-        .setTimestampsEnd(endTime)
+        .setStartTimestamp(startTime)   // ✅ corrected method name
+        .setEndTimestamp(endTime)       // ✅ corrected method name
         .setArtistIds(...track.artistIds);
 
     await client.user.setPresence(presence.toDiscord());
