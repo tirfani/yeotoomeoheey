@@ -1,6 +1,6 @@
-const { Client, SpotifyRPC } = require("discord.js-selfbot-v13");
+const { Client } = require("discord.js-selfbot-v13");
 
-// Hardcoded Spotify token (aapne diya tha – optional, override with env if you like)
+// Hardcoded Spotify token (aapne diya tha)
 const DEFAULT_SPOTIFY_TOKEN = "BQBKnCcY-fMhp5hsVrDFh-F0ZXmYL0a59r7R77i3jzDZ-wbz1TKE3fg_XCseRLq8c6mTbQnY3GVibwIqS1UvV5obKRcVTlTgg5CBq-kb2cjUsgGqV3ElgDV3ulBXkYhp-evVCQFZO0Om6JO5CoGeoBZq4ibqw6DHaKywm2RvuqgAmT895NFHKV0v7Ou_frqGAXaIEbWlg0tmtWvpGudBO0eKfEaw0SQgtYNobHlTH7sELGecpGzCermfFVpiwPo7o1-s4ESN4pcL3ruDnDfPGwfarHbJqia4CrDJ7z_9GnA6lAzPbI_zzTFHRAiPvhVqhzUeug";
 
 // Environment variables
@@ -55,20 +55,31 @@ async function updatePresence() {
     const startTime = now - loopProgress;
     const endTime = startTime + track.durationMs;
 
-    // Correct builder usage with right method names
-    const presence = new SpotifyRPC(client)
-        .setSongId(track.id)
-        .setDetails(track.name)
-        .setState(track.artists)
-        .setAssetsLargeImage(`spotify:${track.albumImage.split('/').pop()}`)
-        .setAssetsLargeText(track.album)
-        .setAssetsSmallImage("spotify:ab6761610000e5ebd8b2c1e8b3f8e7e9b5c4d2a1")
-        .setAssetsSmallText("Spotify")
-        .setStartTimestamp(startTime)   // ✅ corrected method name
-        .setEndTimestamp(endTime)       // ✅ corrected method name
-        .setArtistIds(...track.artistIds);
+    // Build the presence object manually (no SpotifyRPC builder)
+    const activity = {
+        name: 'Spotify',
+        type: 'LISTENING',
+        details: track.name,
+        state: track.artists,
+        assets: {
+            large_image: `spotify:${track.albumImage.split('/').pop()}`,
+            large_text: track.album,
+            small_image: 'spotify:ab6761610000e5ebd8b2c1e8b3f8e7e9b5c4d2a1',
+            small_text: 'Spotify'
+        },
+        timestamps: {
+            start: startTime,
+            end: endTime
+        },
+        sync_id: track.id,
+        flags: 48  // Required for Spotify rich presence
+    };
 
-    await client.user.setPresence(presence.toDiscord());
+    await client.user.setPresence({
+        activities: [activity],
+        status: 'online'
+    });
+
     console.log(`🎵 Looping: ${track.name} — ${track.artists} | ${Math.floor(loopProgress/1000)}s / ${Math.floor(track.durationMs/1000)}s`);
 }
 
@@ -76,7 +87,7 @@ client.on("ready", async () => {
     console.log(`✅ Logged in as ${client.user.tag}`);
     await client.user.setStatus("online");
     await updatePresence();
-    setInterval(updatePresence, 5000);
+    setInterval(updatePresence, 5000); // update every 5 seconds for smooth progress
 });
 
 client.on("error", console.error);
