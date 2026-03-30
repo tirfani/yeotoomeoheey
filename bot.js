@@ -75,7 +75,7 @@ client.on("ready", async () => {
     console.log(`✅ Logged in as ${client.user.tag}`);
     await client.user.setStatus("online");
     await updatePresence();
-    setInterval(updatePresence, 5000); // update progress every 5 seconds
+    setInterval(updatePresence, 5000);
 });
 
 client.on("error", console.error);
