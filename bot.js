@@ -1,36 +1,81 @@
 const { Client } = require("discord.js-selfbot-v13");
 
-// Environment variables
 const DISCORD_TOKEN = process.env.TOKEN;
 const TRACK_ID = process.env.TRACK_ID;
+const CLIENT_ID = process.env.SPOTIFY_CLIENT_ID;
+const CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
 
-// 👇 Your new Spotify token (hardcoded)
-const SPOTIFY_TOKEN = "BQAaUfCSVhpX8bUZjngHhzF5FboymAehCq9CwgoRH9uHUVqojC3gqKrrd6Hww28bp1--nloVyUq3vwthdh5-ZDw_2NxBPiaD_RCglJWAslZ-r3IUiKRkIaTYTyWIPTYJxxCwFDSCDQBayb-VvaRK2F7bJdf-8GLmwUQIh4bgqWOJcVn_O4pb-YGA0k6PBae9jIh3hDECKpEKJ414u_zEPhIs-4D7CC9Vp9addsPTASeajRynv28rUgpkbym1PM6hShElAX4fWlNG0YS8FPd8SQWcJPV_CvOa4cOFd5WZkdZDVUlI_SlbhQEaFG6isSNY5D6zsw";
-
-if (!DISCORD_TOKEN) {
-    console.error("❌ TOKEN environment variable is missing (Discord token).");
-    process.exit(1);
-}
-if (!TRACK_ID) {
-    console.error("❌ TRACK_ID environment variable is missing. Set it in Railway.");
+if (!DISCORD_TOKEN || !TRACK_ID || !CLIENT_ID || !CLIENT_SECRET) {
+    console.error("❌ Missing required environment variables.");
     process.exit(1);
 }
 
 const client = new Client({ checkUpdate: false, syncStatus: false });
 
-async function fetchSpotify(endpoint) {
-    const res = await fetch(`https://api.spotify.com/v1/${endpoint}`, {
-        headers: { Authorization: `Bearer ${SPOTIFY_TOKEN}` }
-    });
-    if (!res.ok) throw new Error(`Spotify API error: ${res.status}`);
-    return res.json();
+let spotifyToken = null;
+let tokenExpiry = 0;
+
+// Get new Spotify token with retry on rate limit
+async function refreshSpotifyToken(retryAfter = 1000) {
+    const auth = Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString('base64');
+    try {
+        const res = await fetch('https://accounts.spotify.com/api/token', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Basic ${auth}`,
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: 'grant_type=client_credentials'
+        });
+        if (res.status === 429) {
+            const retry = parseInt(res.headers.get('Retry-After') || '5') * 1000;
+            console.log(`⚠️ Rate limited. Waiting ${retry}ms...`);
+            setTimeout(() => refreshSpotifyToken(retry), retry);
+            return;
+        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        spotifyToken = data.access_token;
+        tokenExpiry = Date.now() + (data.expires_in * 1000);
+        console.log(`✅ Spotify token refreshed (expires in ${data.expires_in}s)`);
+    } catch (err) {
+        console.error("Failed to get Spotify token:", err);
+        setTimeout(() => refreshSpotifyToken(Math.min(retryAfter * 2, 60000)), retryAfter);
+    }
 }
 
+async function ensureSpotifyToken() {
+    if (!spotifyToken || Date.now() >= tokenExpiry) {
+        await refreshSpotifyToken();
+    }
+    return spotifyToken;
+}
+
+// Cached track details (only fetched once)
 let cachedTrack = null;
+
+async function fetchSpotify(endpoint, retries = 3) {
+    const token = await ensureSpotifyToken();
+    for (let i = 0; i < retries; i++) {
+        const res = await fetch(`https://api.spotify.com/v1/${endpoint}`, {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.status === 429) {
+            const wait = parseInt(res.headers.get('Retry-After') || '5') * 1000;
+            console.log(`⏳ Rate limited, waiting ${wait}ms...`);
+            await new Promise(r => setTimeout(r, wait));
+            continue;
+        }
+        if (!res.ok) throw new Error(`Spotify API error: ${res.status}`);
+        return res.json();
+    }
+    throw new Error(`Failed after ${retries} retries`);
+}
+
 async function getTrackDetails() {
     if (cachedTrack) return cachedTrack;
     const data = await fetchSpotify(`tracks/${TRACK_ID}`);
-    if (!data || data.error) throw new Error("Track not found or invalid ID");
+    if (!data || data.error) throw new Error("Track not found");
     cachedTrack = {
         id: data.id,
         name: data.name,
@@ -78,6 +123,10 @@ client.on("ready", async () => {
     await client.user.setStatus("online");
     await updatePresence();
     setInterval(updatePresence, 5000);
+    // Refresh token every 50 minutes
+    setInterval(async () => {
+        await refreshSpotifyToken();
+    }, 50 * 60 * 1000);
 });
 
 client.on("error", console.error);
