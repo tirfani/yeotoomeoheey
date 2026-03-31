@@ -1,12 +1,11 @@
 const { Client } = require("discord.js-selfbot-v13");
 
-// Hardcoded Spotify token (aapne diya tha)
-const DEFAULT_SPOTIFY_TOKEN = "BQBKnCcY-fMhp5hsVrDFh-F0ZXmYL0a59r7R77i3jzDZ-wbz1TKE3fg_XCseRLq8c6mTbQnY3GVibwIqS1UvV5obKRcVTlTgg5CBq-kb2cjUsgGqV3ElgDV3ulBXkYhp-evVCQFZO0Om6JO5CoGeoBZq4ibqw6DHaKywm2RvuqgAmT895NFHKV0v7Ou_frqGAXaIEbWlg0tmtWvpGudBO0eKfEaw0SQgtYNobHlTH7sELGecpGzCermfFVpiwPo7o1-s4ESN4pcL3ruDnDfPGwfarHbJqia4CrDJ7z_9GnA6lAzPbI_zzTFHRAiPvhVqhzUeug";
-
 // Environment variables
 const DISCORD_TOKEN = process.env.TOKEN;
-const SPOTIFY_TOKEN = process.env.SPOTIFY_TOKEN || DEFAULT_SPOTIFY_TOKEN;
 const TRACK_ID = process.env.TRACK_ID;
+
+// 👇 Your new Spotify token (hardcoded)
+const SPOTIFY_TOKEN = "BQAaUfCSVhpX8bUZjngHhzF5FboymAehCq9CwgoRH9uHUVqojC3gqKrrd6Hww28bp1--nloVyUq3vwthdh5-ZDw_2NxBPiaD_RCglJWAslZ-r3IUiKRkIaTYTyWIPTYJxxCwFDSCDQBayb-VvaRK2F7bJdf-8GLmwUQIh4bgqWOJcVn_O4pb-YGA0k6PBae9jIh3hDECKpEKJ414u_zEPhIs-4D7CC9Vp9addsPTASeajRynv28rUgpkbym1PM6hShElAX4fWlNG0YS8FPd8SQWcJPV_CvOa4cOFd5WZkdZDVUlI_SlbhQEaFG6isSNY5D6zsw";
 
 if (!DISCORD_TOKEN) {
     console.error("❌ TOKEN environment variable is missing (Discord token).");
@@ -19,7 +18,6 @@ if (!TRACK_ID) {
 
 const client = new Client({ checkUpdate: false, syncStatus: false });
 
-// Helper: Spotify API call
 async function fetchSpotify(endpoint) {
     const res = await fetch(`https://api.spotify.com/v1/${endpoint}`, {
         headers: { Authorization: `Bearer ${SPOTIFY_TOKEN}` }
@@ -55,7 +53,6 @@ async function updatePresence() {
     const startTime = now - loopProgress;
     const endTime = startTime + track.durationMs;
 
-    // Build the presence object manually (no SpotifyRPC builder)
     const activity = {
         name: 'Spotify',
         type: 'LISTENING',
@@ -67,19 +64,12 @@ async function updatePresence() {
             small_image: 'spotify:ab6761610000e5ebd8b2c1e8b3f8e7e9b5c4d2a1',
             small_text: 'Spotify'
         },
-        timestamps: {
-            start: startTime,
-            end: endTime
-        },
+        timestamps: { start: startTime, end: endTime },
         sync_id: track.id,
-        flags: 48  // Required for Spotify rich presence
+        flags: 48
     };
 
-    await client.user.setPresence({
-        activities: [activity],
-        status: 'online'
-    });
-
+    await client.user.setPresence({ activities: [activity], status: 'online' });
     console.log(`🎵 Looping: ${track.name} — ${track.artists} | ${Math.floor(loopProgress/1000)}s / ${Math.floor(track.durationMs/1000)}s`);
 }
 
@@ -87,7 +77,7 @@ client.on("ready", async () => {
     console.log(`✅ Logged in as ${client.user.tag}`);
     await client.user.setStatus("online");
     await updatePresence();
-    setInterval(updatePresence, 5000); // update every 5 seconds for smooth progress
+    setInterval(updatePresence, 5000);
 });
 
 client.on("error", console.error);
