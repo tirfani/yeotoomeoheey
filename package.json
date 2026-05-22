@@ -1,13 +1,12 @@
 {
   "name": "neon-puppy-selfbot",
   "version": "1.0.0",
-  "description": "Selfbot for neon puppy feed with cooldown parsing",
+  "description": "",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js"
   },
   "dependencies": {
-    "discord.js-selfbot-v13": "^3.1.5",
-    "dotenv": "^16.4.5"
+    "discord.js-selfbot-v13": "^3.1.5"
   }
 }
