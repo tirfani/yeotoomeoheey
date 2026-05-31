@@ -8,13 +8,7 @@ if (!TOKEN || !CHANNEL_ID) {
     process.exit(1);
 }
 
-// Critical: disable voice to prevent memory leak from werift-rtp
-const client = new Client({ 
-    checkUpdate: false, 
-    syncStatus: false, 
-    voice: false,        // 🔥 Stops voice module from loading
-    messageCacheMaxSize: 10   // Keep only 10 messages per channel in cache
-});
+const client = new Client({ checkUpdate: false, syncStatus: false });
 
 // Human-like typing simulation
 async function sendWithTyping(channel, message) {
@@ -31,9 +25,13 @@ async function sendWithTyping(channel, message) {
     await channel.send(message);
 }
 
+// Extract timestamp from content OR embed description
 function extractCooldownMs(content, embeds) {
+    // First check plain text
     let match = content.match(/<t:(\d+):R>/);
     if (match) return parseInt(match[1], 10) * 1000;
+
+    // Then check each embed's description
     if (embeds && embeds.length) {
         for (const embed of embeds) {
             if (embed.description) {
@@ -45,22 +43,15 @@ function extractCooldownMs(content, embeds) {
     return null;
 }
 
-// Memory monitor – restart if memory exceeds 400MB
-setInterval(() => {
-    const used = process.memoryUsage().heapUsed / 1024 / 1024;
-    console.log(`💾 Memory usage: ${Math.round(used)} MB`);
-    if (used > 400) {
-        console.error("⚠️ Memory limit exceeded. Restarting gracefully...");
-        process.exit(0);  // Railway will auto‑restart
-    }
-}, 60000); // Check every minute
-
-// Reduced debug logging (only essential)
+// Debug: log full message details (including embeds)
 client.on("messageCreate", (msg) => {
     if (msg.channel.id === CHANNEL_ID && msg.author.id !== client.user.id) {
-        // Only log if it's from the neon bot (less noise)
-        if (msg.author.id === "851436490415931422") {
-            console.log(`📩 Reply from ${msg.author.tag}`);
+        console.log(`[DEBUG] ${msg.author.tag} | content: "${msg.content}"`);
+        if (msg.embeds.length) {
+            console.log(`[DEBUG] Embed count: ${msg.embeds.length}`);
+            msg.embeds.forEach((e, i) => {
+                console.log(`[DEBUG] Embed ${i} description: ${e.description || "(none)"}`);
+            });
         }
     }
 });
@@ -70,24 +61,27 @@ async function runLoop(channel) {
         await sendWithTyping(channel, "neon puppy feed");
         console.log(`📤 Sent "neon puppy feed" at ${new Date().toISOString()}`);
 
+        // Wait for ANY message (not from self) that might contain a timestamp in content or embed
         const filter = (msg) => msg.author.id !== client.user.id;
         const collected = await channel.awaitMessages({ filter, max: 1, time: 60000 });
         const reply = collected.first();
+        console.log(`📩 Received message from ${reply.author.tag}`);
 
         const cooldownMs = extractCooldownMs(reply.content, reply.embeds);
         if (!cooldownMs) {
-            console.warn("⚠️ No timestamp found. Retrying in 1 hour.");
+            console.warn("⚠️ No <t:...:R> timestamp found in content or embeds. Retrying in 1 hour.");
             setTimeout(() => runLoop(channel), 60 * 60 * 1000);
             return;
         }
 
-        let wait = cooldownMs - Date.now();
+        const now = Date.now();
+        let wait = cooldownMs - now;
         if (wait < 0) wait = 0;
-        console.log(`⏰ Next feed in ${Math.round(wait / 1000)} seconds (${new Date(cooldownMs).toLocaleString()})`);
+        console.log(`⏰ Next feed in ${Math.round(wait / 1000)} seconds (at ${new Date(cooldownMs).toLocaleString()})`);
 
         setTimeout(() => runLoop(channel), wait);
     } catch (err) {
-        console.error(`❌ Error: ${err.message}. Retry in 10 minutes.`);
+        console.error(`❌ No reply within 60s or error: ${err.message}. Retry in 10 minutes.`);
         setTimeout(() => runLoop(channel), 10 * 60 * 1000);
     }
 }
